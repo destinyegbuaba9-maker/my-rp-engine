@@ -5,6 +5,11 @@ import json
 import time
 import random
 
+# IMPORT your separate files
+from character_creator import CharacterCreator
+from image_generator import ImageGenerator
+from scene_detector import PercyJacksonDetector
+
 # Page config - makes it look good on mobile
 st.set_page_config(
     page_title="Visual RP Engine",
@@ -37,6 +42,16 @@ if 'books_processed' not in st.session_state:
     st.session_state.books_processed = []
 if 'current_character' not in st.session_state:
     st.session_state.current_character = None
+
+# Initialize your tools (from separate files)
+@st.cache_resource
+def init_tools():
+    character_creator = CharacterCreator()
+    image_gen = ImageGenerator()
+    detector = PercyJacksonDetector()
+    return character_creator, image_gen, detector
+
+character_creator, image_gen, detector = init_tools()
 
 # Sidebar navigation
 st.sidebar.title("🎭 Visual RP")
@@ -80,48 +95,12 @@ if page == "📚 Library":
 elif page == "👤 Character":
     st.title("👤 Create Your Character")
     
-    with st.form("character_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            name = st.text_input("Character Name")
-            age = st.number_input("Age", min_value=1, max_value=1000, value=16)
-            
-            parent = st.selectbox(
-                "Godly Parent",
-                ["None", "Zeus", "Poseidon", "Hades", "Athena", "Apollo",
-                 "Artemis", "Ares", "Aphrodite", "Hermes", "Dionysus", "Demeter"]
-            )
-            
-            abilities = st.text_area("Abilities (one per line)")
-        
-        with col2:
-            personality = st.text_area("Personality (traits one per line)")
-            backstory = st.text_area("Backstory (short)")
-        
-        submitted = st.form_submit_button("Save Character")
-        
-        if submitted and name:
-            character = {
-                "name": name,
-                "age": age,
-                "parent": parent if parent != "None" else None,
-                "abilities": [a.strip() for a in abilities.split('\n') if a.strip()],
-                "personality": [p.strip() for p in personality.split('\n') if p.strip()],
-                "backstory": backstory
-            }
-            
-            st.session_state.current_character = character
-            
-            save_path = Path(f"character_{name.lower().replace(' ', '_')}.json")
-            with open(save_path, 'w') as f:
-                json.dump(character, f, indent=2)
-            
-            st.success(f"✅ {name} saved!")
+    # Use character_creator from separate file
+    character = character_creator.render_form()
+    if character:
+        st.session_state.current_character = character
     
-    if st.session_state.current_character:
-        st.subheader("Current Character")
-        st.json(st.session_state.current_character)
+    character_creator.display_character()
 
 # ==================== ROLEPLAY PAGE ====================
 else:
@@ -136,16 +115,22 @@ else:
     
     # Display chat history
     for message in st.session_state.messages:
+        # Show image if this message has one
+        if message.get("image"):
+            st.image(message["image"], use_column_width=True)
+        
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
     
     # Chat input
     if prompt := st.chat_input("What do you do/say?"):
+        # Add user message
         st.session_state.messages.append({"role": "user", "content": prompt})
         
         with st.chat_message("user"):
             st.markdown(prompt)
         
+        # Generate AI response
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 time.sleep(1)
@@ -158,7 +143,31 @@ else:
                 ai_text = random.choice(responses)
                 st.markdown(ai_text)
         
+        # Add AI message
         st.session_state.messages.append({"role": "assistant", "content": ai_text})
+        
+        # ========== AUTO-IMAGE GENERATION ==========
+        # Use detector to decide if we need an image
+        should_gen, reason = detector.should_generate(
+            prompt, 
+            ai_text, 
+            len(st.session_state.messages)
+        )
+        
+        if should_gen:
+            with st.spinner(f"🎨 Painting scene..."):
+                # Use detector to extract scene description
+                char_name = st.session_state.current_character.get('name', '')
+                scene_desc = detector.extract_scene(prompt, ai_text, char_name)
+                
+                # Generate image
+                image = image_gen.generate(scene_desc)
+                
+                if image:
+                    st.image(image, use_column_width=True)
+                    st.session_state.messages[-1]["image"] = image
+                    st.caption("✨ Scene visualized!")
+        
         st.rerun()
 
 # Footer
