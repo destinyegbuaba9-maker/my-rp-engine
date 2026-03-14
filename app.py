@@ -3,12 +3,12 @@ import tempfile
 from pathlib import Path
 import json
 import time
-import random
 
 # IMPORT your separate files
 from character_creator import CharacterCreator
 from image_generator import ImageGenerator
 from scene_detector import PercyJacksonDetector
+from llm_interface import GroqLLM  # NEW
 
 # Page config - makes it look good on mobile
 st.set_page_config(
@@ -49,9 +49,10 @@ def init_tools():
     character_creator = CharacterCreator()
     image_gen = ImageGenerator()
     detector = PercyJacksonDetector()
-    return character_creator, image_gen, detector
+    llm = GroqLLM()  # NEW
+    return character_creator, image_gen, detector, llm
 
-character_creator, image_gen, detector = init_tools()
+character_creator, image_gen, detector, llm = init_tools()  # UPDATED
 
 # Sidebar navigation
 st.sidebar.title("🎭 Visual RP")
@@ -130,17 +131,17 @@ else:
         with st.chat_message("user"):
             st.markdown(prompt)
         
-        # Generate AI response
+        # Generate AI response using Groq (SMART!)
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                time.sleep(1)
+                # Get character info
+                char_info = st.session_state.current_character
                 
-                responses = [
-                    f"You {prompt.lower()}. The scene unfolds before you...",
-                    f"As you {prompt.lower()}, something catches your attention.",
-                    f"The world responds to your action. What happens next?"
-                ]
-                ai_text = random.choice(responses)
+                # Get chat history for context
+                chat_history = st.session_state.messages[:-1]  # Exclude current user message
+                
+                # Call Groq for smart response
+                ai_text = llm.generate_response(prompt, char_info, chat_history)
                 st.markdown(ai_text)
         
         # Add AI message
@@ -160,6 +161,9 @@ else:
                 char_name = st.session_state.current_character.get('name', '')
                 scene_desc = detector.extract_scene(prompt, ai_text, char_name)
                 
+                # DEBUG: Show what's being sent
+                st.caption(f"Generating: {scene_desc[:100]}...")
+                
                 # Generate image
                 image = image_gen.generate(scene_desc)
                 
@@ -167,6 +171,8 @@ else:
                     st.image(image, use_column_width=True)
                     st.session_state.messages[-1]["image"] = image
                     st.caption("✨ Scene visualized!")
+                else:
+                    st.caption("❌ Image generation failed")
         
         st.rerun()
 
