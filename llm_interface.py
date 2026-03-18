@@ -50,7 +50,7 @@ class GroqLLM:
             }
             
             data = {
-                "model": "llama3-70b-8192",
+                "model": "model":"llama-3.3-70b-versatile",
                 "messages": messages,
                 "temperature": 0.8,
                 "max_tokens": 150
@@ -95,7 +95,7 @@ class GroqLLM:
             }
             
             data = {
-                "model": "llama3-70b-8192",
+                "model": "model":"llama-3.3-70b-versatile",
                 "messages": messages,
                 "temperature": 0.9,
                 "max_tokens": 200
