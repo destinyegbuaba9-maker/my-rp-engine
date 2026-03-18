@@ -8,10 +8,11 @@ class GroqLLM:
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
     
     def generate_response(self, user_input, character_info, chat_history, book_context=""):
-        """
-        Generate a smart roleplay response using Groq
-        """
+        """Generate a smart roleplay response using Groq"""
         try:
+            print("Groq generate_response called")
+            print(f"User input: {user_input}")
+            
             # Build the conversation history for context
             messages = [
                 {
@@ -49,9 +50,9 @@ class GroqLLM:
             }
             
             data = {
-                "model": "llama3-70b-8192",  # Smart and fast
+                "model": "llama3-70b-8192",
                 "messages": messages,
-                "temperature": 0.8,  # Creative but not crazy
+                "temperature": 0.8,
                 "max_tokens": 150
             }
             
@@ -71,3 +72,42 @@ class GroqLLM:
     def _fallback_response(self, user_input):
         """Simple fallback if API fails"""
         return f"You {user_input.lower()}. The scene continues around you."
+    
+    def generate_opening(self, character_info):
+        """Generate an opening scene when starting a new game"""
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": f"""You are a roleplay master for a Percy Jackson game.
+                    The user is playing as: {json.dumps(character_info)}
+                    
+                    Create an immersive opening scene for their character at Camp Half-Blood.
+                    Describe where they are, what they see, and set up a small hook for adventure.
+                    Be descriptive and atmospheric. 3-4 sentences.
+                    """
+                }
+            ]
+            
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            data = {
+                "model": "llama3-70b-8192",
+                "messages": messages,
+                "temperature": 0.9,
+                "max_tokens": 200
+            }
+            
+            response = requests.post(self.api_url, headers=headers, json=data, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                return result['choices'][0]['message']['content']
+            else:
+                return "You find yourself at Camp Half-Blood as the sun sets over the valley. The campers are gathering around the dining pavilion, and you hear Chiron's hoofsteps approaching."
+                
+        except Exception as e:
+            return "You find yourself at Camp Half-Blood as the sun sets over the valley."
