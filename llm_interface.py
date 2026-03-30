@@ -4,16 +4,22 @@ import json
 
 class GroqLLM:
     def __init__(self):
-        self.api_key = "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"
+        # Load key from Streamlit Secrets (this is what you just set)
+        self.api_key = st.secrets.get("GROQ_API_KEY")
+        
+        if not self.api_key:
+            st.error("❌ Groq API key is missing. Please add GROQ_API_KEY in App Settings → Secrets.")
+            self.api_key = None
+            
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
-    
+
     def generate_response(self, user_input, character_info, chat_history, book_context=""):
         """Generate a smart roleplay response using Groq"""
+        if not self.api_key:
+            return self._fallback_response(user_input)
+
         try:
-            print("Groq generate_response called")
-            print(f"User input: {user_input}")
-            
-            # Build the conversation history for context
+            # Build messages
             messages = [
                 {
                     "role": "system",
@@ -30,27 +36,22 @@ class GroqLLM:
                 }
             ]
             
-            # Add chat history (last 6 messages for context)
+            # Add recent chat history
             for msg in chat_history[-6:]:
                 messages.append({
                     "role": msg["role"],
                     "content": msg["content"]
                 })
             
-            # Add the current user input
-            messages.append({
-                "role": "user",
-                "content": user_input
-            })
-            
-            # Call Groq API
+            messages.append({"role": "user", "content": user_input})
+
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
             
             data = {
-                "model":"llama-3.3-70b-versatile",
+                "model": "llama-3.3-70b-versatile",
                 "messages": messages,
                 "temperature": 0.8,
                 "max_tokens": 150
@@ -62,19 +63,28 @@ class GroqLLM:
                 result = response.json()
                 return result['choices'][0]['message']['content']
             else:
-                st.error(f"Groq API error: {response.status_code}")
+                error_detail = ""
+                try:
+                    error_detail = response.json().get('error', {}).get('message', '')
+                except:
+                    error_detail = response.text[:200]
+                
+                st.error(f"Groq API error ({response.status_code}): {error_detail}")
                 return self._fallback_response(user_input)
                 
         except Exception as e:
-            st.error(f"Error with Groq: {e}")
+            st.error(f"Error connecting to Groq: {str(e)}")
             return self._fallback_response(user_input)
     
     def _fallback_response(self, user_input):
         """Simple fallback if API fails"""
-        return f"You {user_input.lower()}. The scene continues around you."
+        return f"You {user_input.lower()}. The scene continues around you in Camp Half-Blood."
     
     def generate_opening(self, character_info):
         """Generate an opening scene when starting a new game"""
+        if not self.api_key:
+            return "You find yourself at Camp Half-Blood as the sun sets over the valley. The campers are gathering around the dining pavilion, and you hear Chiron's hoofsteps approaching."
+
         try:
             messages = [
                 {
@@ -95,7 +105,7 @@ class GroqLLM:
             }
             
             data = {
-                "model":"llama-3.3-70b-versatile",
+                "model": "llama-3.3-70b-versatile",
                 "messages": messages,
                 "temperature": 0.9,
                 "max_tokens": 200
@@ -110,4 +120,5 @@ class GroqLLM:
                 return "You find yourself at Camp Half-Blood as the sun sets over the valley. The campers are gathering around the dining pavilion, and you hear Chiron's hoofsteps approaching."
                 
         except Exception as e:
+            st.error(f"Error generating opening scene: {str(e)}")
             return "You find yourself at Camp Half-Blood as the sun sets over the valley."
